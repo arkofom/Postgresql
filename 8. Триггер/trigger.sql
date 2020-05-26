@@ -83,11 +83,13 @@ create or replace function Inserting() returns trigger as
     --Если необходимого количества товара нет на складе - кинуть exception
     declare
         recept_storage integer;
+        recept_date date;
         sum integer;
     begin
         select
-             recept.storage
-        into recept_storage
+            recept.storage,
+            recept.ddate
+        into recept_storage, recept_date
         from recept
         where recept.id = new.id;
 
@@ -95,8 +97,9 @@ create or replace function Inserting() returns trigger as
             select sum(volume)
             from remains
             where remains.goods = new.goods
+            and remains.ddate < recept_date
             and remains.storage = recept_storage
-            ); --текущий остаток на складе
+        ); --текущий остаток на складе
 
         if (new.volume  > sum) then
             raise exception 'Remains amount cant be less than check amount';
