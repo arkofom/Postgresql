@@ -39,6 +39,7 @@ create or replace function Inserted() returns trigger as
             r.volume
         from remains r
         where r.goods = new.goods
+        and r.ddate < recept_date
         and r.storage = recept_storage
         order by ddate;
 
