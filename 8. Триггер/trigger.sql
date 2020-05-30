@@ -22,6 +22,7 @@ create or replace function Inserted() returns trigger as
 
         --находим все остатки расходуемого товара на найденном складе
         --найденные значения помещаем во временную таблицу
+        drop table if exists rms;
         create temp table rms(
               id int,
               subid int,
