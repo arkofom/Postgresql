@@ -7,20 +7,19 @@ base = ''
 name_pass = ''
 pref = ''
 engine = create_engine(f"{pref}://{name_pass}@{base}")
-
-
-def moving_average(dateFrom: str, dateTo: str, window_size: int) -> pd.DataFrame:
+def exp_average(dateFrom: str, dateTo: str, alpha: float=0.1) -> pd.DataFrame:
     SQL = '''
-        SELECT recept.storage st,
-               recgoods.goods g,
-               recept.ddate   d,
-               sum(recgoods.volume * goods.length * goods.height * goods.width) AS vol
-        FROM recept
-                 JOIN recgoods ON recept.id = recgoods.id
-                 JOIN goods ON recgoods.goods = goods.id
-        WHERE recept.ddate >= %(mindate)s
-          AND recept.ddate <= %(maxdate)s
-        GROUP BY recept.storage,  recgoods.goods, recept.ddate;
+        SELECT recept.storage                                                      st,
+                   recgoods.goods                                                      g,
+                   recept.ddate                                                        d,
+                   sum(recgoods.volume * goods.length * goods.height * goods.width) AS vol
+            FROM recept
+                     JOIN recgoods ON recept.id = recgoods.id
+                     JOIN goods ON recgoods.goods = goods.id
+            WHERE recept.ddate >=  %(mindate)s
+              AND recept.ddate <= %(maxdate)s
+            GROUP BY recept.storage, recgoods.goods, recept.ddate
+            ORDER BY recept.storage, recgoods.goods, recept.ddate
     '''
 
     df = pd.read_sql(
@@ -30,22 +29,18 @@ def moving_average(dateFrom: str, dateTo: str, window_size: int) -> pd.DataFrame
         parse_dates={'recept.ddate': dict(format='%Y%m%d')}
     )
 
-    N = df.shape[0]
-    if (N < window_size):
-        raise ValueError(f'Invalid windows size > {N}')
-
     dfs = df.set_index(['st', 'g'])
     dfs.drop('d', axis=1, inplace=True)
-    dfs['vol'] = dfs['vol'].shift(1)
-    dfs = dfs.groupby(level=['st', 'g']).rolling(window=window_size).mean()
-    dfs.reset_index(level=[2,1], inplace=True)
+    dfs = dfs.ewm(alpha=alpha, adjust=False).mean()
+    dfs.reset_index(level=[0,1], inplace=True)
     dfs.reset_index(drop=True, inplace=True)
-    dft = df.sort_values(['st' ,'g'],)
-    dft.reset_index(drop=True, inplace=True)
-    names = ['warehouse', 'goods', 'date', 'volume']
-    dft.columns = names
-    dft['prediction'] = dfs['vol']
-    return dft
+    names = ['storage', 'goods', 'date', 'sum']
+    df.columns = names
+    df['prediction'] = dfs['vol']
+
+    return df
+
+exp_average('20200201', '20201231', 0.1)
 
 
 result = moving_average('20200201', '20201231', 2)
